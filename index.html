@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gujarat PO Revenue Live Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --gold-primary: #FFD700;
+            --gold-dark: #B8860B;
+            --neon-glow: 0 0 15px rgba(255, 215, 0, 0.4);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #ffffff;
+            --bg-gradient: radial-gradient(circle at top right, #2c2c2c, #000000);
+        }
+
+        [data-theme="light"] {
+            --gold-primary: #b45309;
+            --gold-dark: #78350f;
+            --neon-glow: 0 0 10px rgba(180, 83, 9, 0.2);
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(180, 83, 9, 0.2);
+            --text-main: #1f2937;
+            --bg-gradient: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            transition: all 0.4s ease;
+            min-height: 100vh;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .custom-table th {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px;
+            text-align: center;
+            border: 1px solid var(--glass-border);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .custom-table td {
+            padding: 10px;
+            border: 1px solid var(--glass-border);
+            transition: background 0.3s;
+        }
+
+        .region-row { background: rgba(255, 215, 0, 0.08); cursor: pointer; font-weight: bold; }
+        .division-row { background: rgba(255, 255, 255, 0.02); }
+        .total-row { background: rgba(255, 215, 0, 0.15); font-weight: 900; }
+
+        .sticky-col { position: sticky; left: 0; background: inherit; z-index: 5; border-right: 2px solid var(--glass-border) !important; }
+
+        .countdown-circle {
+            width: 36px; height: 36px;
+            border: 2px solid var(--gold-primary);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 0.8rem;
+        }
+
+        .btn-action {
+            padding: 6px 14px;
+            border-radius: 8px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            font-size: 0.8rem;
+            display: flex; align-items: center; gap: 6px;
+            transition: 0.2s;
+        }
+
+        .btn-action:hover { background: var(--gold-primary); color: #000; }
+
+        @keyframes pulse-shimmer {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .refreshing td { animation: pulse-shimmer 0.5s ease-in-out; }
+
+        select {
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            border: 1px solid var(--glass-border);
+            padding: 5px 10px;
+            border-radius: 6px;
+        }
+        [data-theme="light"] select { background: #fff; color: #000; }
+        
+        .mobile-mode .custom-table thead { display: none; }
+        .mobile-mode .custom-table tr { display: block; margin-bottom: 1rem; border: 2px solid var(--gold-primary); }
+        .mobile-mode .custom-table td { display: flex; justify-content: space-between; text-align: right; border: none; }
+        .mobile-mode .custom-table td::before { content: attr(data-label); font-weight: bold; text-align: left; }
+    </style>
+</head>
+<body>
+    <header class="p-4 mx-4 mt-4 glass-card flex flex-col md:flex-row justify-between items-center gap-4 sticky top-4 z-[100]">
+        <div class="flex items-center gap-3">
+            <div class="bg-yellow-500 p-2 rounded-lg"><i class="fas fa-microchip text-black"></i></div>
+            <div>
+                <h1 class="text-lg font-black tracking-tighter">GUJARAT PO REVENUE</h1>
+                <div class="flex items-center gap-2 text-[10px] opacity-60 uppercase tracking-widest">
+                    <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live System
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 border-r border-white/10 pr-4">
+                <span class="text-[10px] opacity-50">SYNC:</span>
+                <div id="countdown" class="countdown-circle">60</div>
+            </div>
+            <button onclick="toggleView()" class="btn-action"><i class="fas fa-desktop"></i> <span id="v-text">Desktop</span></button>
+            <button onclick="toggleTheme()" class="btn-action"><i class="fas fa-moon"></i></button>
+        </div>
+    </header>
+
+    <main id="app-wrapper" class="p-4 max-w-[1600px] mx-auto space-y-6">
+        <!-- PART A -->
+        <section class="glass-card p-5">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-sm font-bold text-yellow-500 uppercase tracking-tighter">Part A: Regional Comprehensive Metrics</h2>
+                    <p class="text-[10px] opacity-50">Note: 'Total' column includes all revenue rows for the selected period.</p>
+                </div>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <select id="a-p1" onchange="handleAPeriodChange()"></select>
+                    <select id="a-p2" onchange="renderTableA()"></select>
+                    <div class="h-6 w-[1px] bg-white/10"></div>
+                    <button onclick="exportTable('table-a', 'Regional_Metrics')" class="btn-action text-green-400"><i class="fas fa-file-csv"></i> Export Table</button>
+                    <button onclick="exportRawData()" class="btn-action text-blue-400"><i class="fas fa-database"></i> Raw Data</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="table-a" class="custom-table"></table>
+            </div>
+        </section>
+
+        <!-- PART B -->
+        <section class="glass-card p-5">
+            <h2 class="text-sm font-bold text-yellow-500 uppercase mb-6">Part B: Target Achievement Analysis</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="space-y-1">
+                    <label class="text-[10px] opacity-50 ml-1">REGION (TARGET DATA)</label>
+                    <select id="b-reg" class="w-full" onchange="handleBRegChange()"></select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] opacity-50 ml-1">PERIOD (ACTUAL DATA)</label>
+                    <select id="b-per" class="w-full" onchange="handleBPerChange()" disabled></select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] opacity-50 ml-1">PRODUCT GROUP</label>
+                    <select id="b-prod" class="w-full" onchange="renderTableB()" disabled></select>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="table-b" class="custom-table"></table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTeuE9DKwx-FsoQBKwHW4bpJAPFZg0d9KGGDbqkoUNEeqBBWlNeh7qpM4nu4AwsXetoj1FLiNfOyiqe/pub?gid=0&single=true&output=csv';
+        const PRODUCT_COLS = ["CCS", "Parcel", "IRGB", "MO", "FS"];
+        
+        let rawData = [];
+        let timer = 60;
+        let expanded = new Set();
+        let isDark = true;
+        let isMobile = false;
+
+        window.onload = async () => {
+            await updateDashboard();
+            setInterval(tick, 1000);
+        };
+
+        async function tick() {
+            timer--;
+            document.getElementById('countdown').innerText = timer;
+            if (timer <= 0) {
+                timer = 60;
+                await updateDashboard(true);
+            }
+        }
+
+        async function updateDashboard(isBackground = false) {
+            const tableA = document.getElementById('table-a');
+            const tableB = document.getElementById('table-b');
+            
+            if(isBackground) {
+                tableA.classList.add('refreshing');
+                tableB.classList.add('refreshing');
+            }
+
+            try {
+                const response = await fetch(CSV_URL);
+                const text = await response.text();
+                rawData = parseCSV(text);
+                
+                initFilters();
+                renderTableA();
+                renderTableB();
+            } catch (err) {
+                console.error("Data fetch failed", err);
+            }
+
+            if(isBackground) {
+                setTimeout(() => {
+                    tableA.classList.remove('refreshing');
+                    tableB.classList.remove('refreshing');
+                }, 1000);
+            }
+        }
+
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(l => l.trim());
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            return lines.slice(1).map(line => {
+                const values = line.split(/,(?=(?:(?:[^["]*"){2})*[^["]*$)/);
+                const obj = {};
+                headers.forEach((h, i) => {
+                    let v = (values[i] || "").trim().replace(/"/g, '');
+                    obj[h] = h === 'Amount_Rs' ? parseFloat(v) || 0 : v;
+                });
+                return obj;
+            });
+        }
+
+        function initFilters() {
+            const p1Sel = document.getElementById('a-p1');
+            const p2Sel = document.getElementById('a-p2');
+            
+            // Period discovery: Look for any row that has a Period label, ignoring Datatype for now to be safe
+            const periods = [...new Set(rawData.map(d => d.Period))].filter(p => p && p !== "Period").sort();
+            
+            if (!p1Sel.innerHTML && periods.length > 0) {
+                p1Sel.innerHTML = periods.map(p => `<option value="${p}">${p}</option>`).join('');
+                handleAPeriodChange();
+            }
+
+            const bReg = document.getElementById('b-reg');
+            if (!bReg.innerHTML) {
+                const regions = [...new Set(rawData.filter(d => d.Datatype && d.Datatype.toLowerCase() === "target").map(d => d.Region))].filter(r => r).sort();
+                bReg.innerHTML = '<option value="">Select Region</option>' + regions.map(r => `<option value="${r}">${r}</option>`).join('');
+            }
+        }
+
+        function handleAPeriodChange() {
+            const p1 = document.getElementById('a-p1').value;
+            const p2Sel = document.getElementById('a-p2');
+            const periods = [...new Set(rawData.map(d => d.Period))].filter(p => p).sort();
+            const currentP2 = p2Sel.value;
+            
+            p2Sel.innerHTML = '<option value="">-- No Comparison --</option>' + 
+                periods.filter(p => p !== p1).map(p => `<option value="${p}" ${p === currentP2 ? 'selected' : ''}>${p}</option>`).join('');
+            renderTableA();
+        }
+
+        function handleBRegChange() {
+            const reg = document.getElementById('b-reg').value;
+            const bPer = document.getElementById('b-per');
+            if(!reg) { bPer.disabled = true; return; }
+            
+            const periods = [...new Set(rawData.filter(d => d.Region === reg).map(d => d.Period))].filter(p => p).sort();
+            bPer.disabled = false;
+            bPer.innerHTML = '<option value="">Select Period</option>' + periods.map(p => `<option value="${p}">${p}</option>`).join('');
+            handleBPerChange();
+        }
+
+        function handleBPerChange() {
+            const per = document.getElementById('b-per').value;
+            const bProd = document.getElementById('b-prod');
+            if(!per) { bProd.disabled = true; return; }
+            
+            bProd.disabled = false;
+            bProd.innerHTML = '<option value="">Select Product Group</option>' + 
+                PRODUCT_COLS.map(p => `<option value="${p}">${p}</option>`).join('');
+            renderTableB();
+        }
+
+        function renderTableA() {
+            const p1 = document.getElementById('a-p1').value;
+            const p2 = document.getElementById('a-p2').value;
+            const container = document.getElementById('table-a');
+            
+            // Logic Change: In Part A, we sum EVERY row that matches the selected Period.
+            // This ensures the "Total" column matches the sheet exactly.
+            const dataSet = rawData.filter(d => d.Period === p1 || d.Period === p2);
+
+            const map = { regions: {}, divisions: {} };
+            const grandTotal = { p1: { total: 0 }, p2: { total: 0 } };
+            PRODUCT_COLS.forEach(c => { grandTotal.p1[c] = 0; grandTotal.p2[c] = 0; });
+
+            const initEntry = () => {
+                const entry = { p1: { total: 0 }, p2: { total: 0 } };
+                PRODUCT_COLS.forEach(c => { entry.p1[c] = 0; entry.p2[c] = 0; });
+                return entry;
+            };
+
+            dataSet.forEach(d => {
+                const reg = d.Region;
+                const div = d.Division;
+                const prod = d.Product_Group;
+                const amt = d.Amount_Rs;
+
+                if (!reg) return;
+                if (!map.regions[reg]) map.regions[reg] = initEntry();
+                if (div && !map.divisions[div]) map.divisions[div] = initEntry();
+
+                const pKey = (d.Period === p1) ? 'p1' : 'p2';
+
+                // 1. Specific Product Columns (Selective)
+                if (PRODUCT_COLS.includes(prod)) {
+                    map.regions[reg][pKey][prod] += amt;
+                    if (div) map.divisions[div][pKey][prod] += amt;
+                    grandTotal[pKey][prod] += amt;
+                }
+
+                // 2. Absolute Total (The Source of Truth)
+                // Includes ALL rows for that period (Actual, Target, others)
+                // If you strictly want only Actual totals to match, we use d.Datatype check:
+                const isActual = d.Datatype && d.Datatype.toLowerCase().includes("actual");
+                
+                // If the user wants the "Total" to reflect the actual revenue, 
+                // we sum rows where Datatype is Actual OR where Datatype is missing (catch-all)
+                if (isActual || !d.Datatype) {
+                    map.regions[reg][pKey].total += amt;
+                    if (div) map.divisions[div][pKey].total += amt;
+                    grandTotal[pKey].total += amt;
+                }
+            });
+
+            const regions = Object.keys(map.regions).sort();
+            
+            let html = `<thead><tr><th rowspan="2" class="sticky-col">Hierarchy</th>`;
+            PRODUCT_COLS.forEach(c => html += `<th colspan="${p2 ? 2 : 1}">${c}</th>`);
+            html += `<th colspan="${p2 ? 2 : 1}">Total</th></tr><tr>`;
+            for(let i=0; i <= PRODUCT_COLS.length; i++) {
+                html += `<th>${p1}</th>`;
+                if(p2) html += `<th class="bg-blue-500/10">${p2}</th>`;
+            }
+            html += `</tr></thead><tbody>`;
+
+            regions.forEach(r => {
+                const rVal = map.regions[r];
+                const isExp = expanded.has(r);
+                
+                html += `<tr class="region-row" onclick="toggleExp('${r}')">
+                    <td class="sticky-col"><i class="fas fa-chevron-${isExp?'down':'right'} mr-2 text-yellow-500"></i> ${r}</td>`;
+                
+                PRODUCT_COLS.forEach(c => {
+                    html += `<td class="text-right">${rVal.p1[c].toLocaleString()}</td>`;
+                    if(p2) html += `<td class="text-right bg-blue-500/5">${rVal.p2[c].toLocaleString()}</td>`;
+                });
+                html += `<td class="text-right text-yellow-500">${rVal.p1.total.toLocaleString()}</td>`;
+                if(p2) html += `<td class="text-right bg-blue-500/10 text-yellow-500">${rVal.p2.total.toLocaleString()}</td>`;
+                html += `</tr>`;
+
+                if(isExp) {
+                    const divsInReg = [...new Set(dataSet.filter(d => d.Region === r).map(d => d.Division))].filter(d => d).sort();
+                    divsInReg.forEach(d => {
+                        const dVal = map.divisions[d];
+                        if(!dVal) return;
+                        html += `<tr class="division-row text-[11px] opacity-80">
+                            <td class="sticky-col pl-8 italic">${d}</td>`;
+                        PRODUCT_COLS.forEach(c => {
+                            html += `<td class="text-right">${dVal.p1[c].toLocaleString()}</td>`;
+                            if(p2) html += `<td class="text-right bg-blue-500/5">${dVal.p2[c].toLocaleString()}</td>`;
+                        });
+                        html += `<td class="text-right">${dVal.p1.total.toLocaleString()}</td>`;
+                        if(p2) html += `<td class="text-right bg-blue-500/10">${dVal.p2.total.toLocaleString()}</td>`;
+                        html += `</tr>`;
+                    });
+                }
+            });
+
+            html += `<tr class="total-row sticky bottom-0">
+                <td class="sticky-col">GRAND TOTAL</td>`;
+            PRODUCT_COLS.forEach(c => {
+                html += `<td class="text-right">${grandTotal.p1[c].toLocaleString()}</td>`;
+                if(p2) html += `<td class="text-right">${grandTotal.p2[c].toLocaleString()}</td>`;
+            });
+            html += `<td class="text-right">${grandTotal.p1.total.toLocaleString()}</td>`;
+            if(p2) html += `<td class="text-right">${grandTotal.p2.total.toLocaleString()}</td>`;
+            html += `</tr></tbody>`;
+
+            container.innerHTML = html;
+        }
+
+        function renderTableB() {
+            const reg = document.getElementById('b-reg').value;
+            const per = document.getElementById('b-per').value;
+            const prod = document.getElementById('b-prod').value;
+            const table = document.getElementById('table-b');
+
+            if(!reg || !per || !prod) {
+                table.innerHTML = `<tr><td class="p-10 text-center opacity-40">Complete selections to view analysis</td></tr>`;
+                return;
+            }
+
+            const targets = rawData.filter(d => d.Datatype && d.Datatype.toLowerCase().includes("target") && d.Region === reg && d.Product_Group === prod);
+            const actuals = rawData.filter(d => d.Datatype && d.Datatype.toLowerCase().includes("actual") && d.Region === reg && d.Period === per && d.Product_Group === prod);
+
+            const divs = [...new Set([...targets, ...actuals].map(d => d.Division))].filter(d => d).sort();
+            
+            let totalTarget = 0;
+            let totalActual = 0;
+
+            let html = `<thead><tr><th>Division</th><th>Target</th><th>Achievement</th><th>%</th></tr></thead><tbody>`;
+            divs.forEach(d => {
+                const targetVal = targets.filter(t => t.Division === d).reduce((s, c) => s + c.Amount_Rs, 0);
+                const actualVal = actuals.filter(a => a.Division === d).reduce((s, c) => s + c.Amount_Rs, 0);
+                
+                totalTarget += targetVal;
+                totalActual += actualVal;
+
+                const pct = targetVal > 0 ? (actualVal / targetVal * 100).toFixed(1) : "0.0";
+                const color = pct >= 100 ? 'text-green-400' : (pct >= 80 ? 'text-yellow-400' : 'text-red-400');
+
+                html += `<tr>
+                    <td data-label="Division">${d}</td>
+                    <td data-label="Target" class="text-right font-mono">${targetVal.toLocaleString()}</td>
+                    <td data-label="Actual" class="text-right font-mono">${actualVal.toLocaleString()}</td>
+                    <td data-label="%" class="text-right font-black ${color}">${pct}%</td>
+                </tr>`;
+            });
+
+            const totalPct = totalTarget > 0 ? (totalActual / totalTarget * 100).toFixed(1) : "0.0";
+            const totalColor = totalPct >= 100 ? 'text-green-400' : (totalPct >= 80 ? 'text-yellow-400' : 'text-red-400');
+
+            html += `</tbody><tfoot><tr class="total-row">
+                <td data-label="Division">GRAND TOTAL</td>
+                <td data-label="Target" class="text-right font-mono">${totalTarget.toLocaleString()}</td>
+                <td data-label="Actual" class="text-right font-mono">${totalActual.toLocaleString()}</td>
+                <td data-label="%" class="text-right font-black ${totalColor}">${totalPct}%</td>
+            </tr></tfoot>`;
+            
+            table.innerHTML = html;
+        }
+
+        function toggleExp(r) {
+            if(expanded.has(r)) expanded.delete(r);
+            else expanded.add(r);
+            renderTableA();
+        }
+
+        function toggleTheme() {
+            isDark = !isDark;
+            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        }
+
+        function toggleView() {
+            isMobile = !isMobile;
+            document.body.classList.toggle('mobile-mode', isMobile);
+            document.getElementById('v-text').innerText = isMobile ? 'Mobile' : 'Desktop';
+        }
+
+        function exportTable(id, name) {
+            const table = document.getElementById(id);
+            let csv = [];
+            const rows = table.querySelectorAll("tr");
+            for (let i = 0; i < rows.length; i++) {
+                let row = [], cols = rows[i].querySelectorAll("td, th");
+                for (let j = 0; j < cols.length; j++) row.push(`"${cols[j].innerText.trim().replace(/\n/g, ' ')}"`);
+                csv.push(row.join(","));
+            }
+            downloadBlob(csv.join("\n"), `${name}_${new Date().getTime()}.csv`);
+        }
+
+        function exportRawData() {
+            if (rawData.length === 0) return;
+            const headers = Object.keys(rawData[0]).join(",");
+            const content = rawData.map(r => Object.values(r).map(v => `"${v}"`).join(",")).join("\n");
+            downloadBlob(headers + "\n" + content, "Raw_Revenue_Data.csv");
+        }
+
+        function downloadBlob(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
